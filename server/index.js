@@ -1,43 +1,45 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+
 const connectDB = require('./src/config/db');
-const ErrorModel = require('./src/models/Error'); 
+const errorRoutes = require('./src/routes/errors');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Connect DB
+// Connect to database
 connectDB();
 
-// Middleware
+// ===== Middleware =====
+app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
+// ===== Routes =====
+app.use('/api/errors', errorRoutes);
+
 // Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date()
+  });
 });
 
-/* =========================
-   STEP 6 & 7: TEST ROUTE
-   ========================= */
-app.get('/test-db', async (req, res) => {
-  try {
-    const error = await ErrorModel.findOneAndUpdate(
-      { fingerprint: 'typeerror-appjs-23', environment: 'development' },
-      {
-        $inc: { count: 1 },
-        $set: { lastSeen: new Date() }
-      },
-      { new: true, upsert: true }
-    );
+// ===== Global Error Handler =====
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
 
-    res.json(error);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
 });
 
-// Start server (ALWAYS LAST)
+// ===== Start Server =====
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
