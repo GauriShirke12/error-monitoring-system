@@ -11,6 +11,10 @@ const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
 const errorValidationRules = require('../validators/errorValidator');
 
+
+// routes/errors.js
+router.post('/', validateError, ingestError);
+
 router.post(
   '/',
   errorValidationRules,
