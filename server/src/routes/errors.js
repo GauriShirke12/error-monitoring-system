@@ -2,7 +2,12 @@ const express = require('express');
 const router = express.Router();
 
 const ErrorModel = require('../models/Error');
+const ErrorOccurrence = require('../models/ErrorOccurrence');
+
 const generateFingerprint = require('../utils/fingerprint');
+const { sanitizeText } = require('../utils/sanitize');
+const logger = require('../utils/logger');
+
 const { validationResult } = require('express-validator');
 const errorValidationRules = require('../validators/errorValidator');
 
@@ -10,36 +15,39 @@ router.post(
   '/',
   errorValidationRules,
   async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(200).json({ success: true });
+    }
+
+    const {
+      message,
+      stackTrace,
+      environment,
+      userContext,
+      metadata
+    } = req.body;
+
     try {
-      const errors = validationResult(req);
+      //Sanitize inputs
+      const cleanMessage = sanitizeText(message);
+      const cleanStackTrace = sanitizeText(stackTrace);
 
-      // Fail silently if validation fails
-      if (!errors.isEmpty()) {
-        return res.status(200).json({ success: true });
-      }
-
-      const {
-        message,
-        stackTrace,
-        environment,
-        userContext,
-        metadata
-      } = req.body;
-
-      const fingerprint = generateFingerprint(message, stackTrace);
-
-      // Defensive: if fingerprint fails, do nothing
+      // Generate fingerprint
+      const fingerprint = generateFingerprint(cleanMessage, cleanStackTrace);
       if (!fingerprint) {
         return res.status(200).json({ success: true });
       }
 
-      await ErrorModel.findOneAndUpdate(
+      //Group error
+      const errorGroup = await ErrorModel.findOneAndUpdate(
         { fingerprint, environment },
         {
           $inc: { count: 1 },
           $set: {
-            message,
-            stackTrace,
+            message: cleanMessage,
+            stackTrace: cleanStackTrace,
             lastSeen: new Date(),
             metadata: metadata || {},
             userContext: userContext || {}
@@ -49,13 +57,30 @@ router.post(
             status: 'open'
           }
         },
-        { upsert: true }
+        { upsert: true, new: true }
       );
 
-      res.status(200).json({ success: true });
+      // Store occurrence
+      await ErrorOccurrence.create({
+        errorId: errorGroup._id,
+        metadata: metadata || {},
+        userContext: userContext || {}
+      });
+
+      // Success (silent)
+      return res.status(200).json({ success: true });
+
     } catch (err) {
-      // Absolute silence on failure
-      res.status(200).json({ success: true });
+      // Defensive failure handling
+      logger.error({
+        message: 'Error ingestion failed',
+        error: err.message,
+        stack: err.stack,
+        environment
+      });
+
+      // Client must never fail
+      return res.status(202).json({ accepted: true });
     }
   }
 );
