@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ErrorMonitor SDK Test</title>
+</head>
+<body>
+  <h1>SDK Auto Error Capture Test</h1>
+
+  <!-- Load the browser bundle -->
+  <script src="../sdk/browser/dist/bundle.js"></script>
+
+  <script>
+    // Initialize SDK
+    ErrorMonitor.init({
+      apiKey: 'test-api-key',
+      apiUrl: 'http://localhost:4000/api/errors',
+      environment: 'development'
+    });
+
+    // TEST 1: undefined variable
+    console.log(nonExistentVar.foo);
+
+    // TEST 2: null reference
+    const a = null;
+    a.test();
+  </script>
+
+  <script>
+  // Unhandled rejection test
+  Promise.reject(new Error('Async failure test'));
+
+  // Fetch without catch
+  fetch('/this-url-does-not-exist')
+    .then(res => res.json());
+</script>
+<script>
+  ErrorMonitor.setUser({ id: '42', role: 'admin' });
+
+  ErrorMonitor.setTag('page', 'login');
+
+  ErrorMonitor.addBreadcrumb({
+    category: 'auth',
+    message: 'Login button clicked'
+  });
+
+  try {
+    throw new Error('Manual test error');
+  } catch (err) {
+    ErrorMonitor.captureError(err, { severity: 'critical' });
+  }
+</script>
+
+</body>
+</html>

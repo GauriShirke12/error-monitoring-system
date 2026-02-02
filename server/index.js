@@ -6,6 +6,17 @@ const rateLimit = require('express-rate-limit');
 
 const connectDB = require('./src/config/db');
 const errorRoutes = require('./src/routes/errors');
+const errorRoutes = require('./src/routes/errors');
+const analyticsRoutes = require('./src/routes/analytics');
+
+app.use(express.json());
+
+app.use('/api/errors', errorRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
+app.listen(4000, () => {
+  console.log('Server running on port 4000');
+});
 
 const app = express();
 const PORT = process.env.PORT || 4000;
